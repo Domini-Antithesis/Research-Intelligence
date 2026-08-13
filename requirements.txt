@@ -2,8 +2,9 @@
 #
 # This project has no Python application code of its own. Everything runs
 # inside Docker containers (n8n, ChromaDB, Ollama) orchestrated by
-# docker-compose.yml, and the actual bot logic lives in the two n8n workflow
-# JSON files under workflows/. There is nothing here to `pip install`.
+# Research-Intelligence/docker-compose.yml, and the actual bot logic lives in
+# the two n8n workflow JSON files under Research-Intelligence/workflows/.
+# There is nothing here to `pip install`.
 #
 # --- System-level requirements (not pip packages) ---
 #   Docker Desktop >= 24.x   (Windows/Mac) or Docker Engine + Compose v2 (Linux)
