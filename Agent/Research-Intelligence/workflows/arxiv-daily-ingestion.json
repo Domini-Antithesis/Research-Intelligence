@@ -1,0 +1,192 @@
+{
+  "name": "Research Intelligence - Daily arXiv Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-daily-ingestion",
+      "name": "Daily arXiv schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://export.arxiv.org/api/query?search_query=cat:cs.AI&start=0&max_results=5&sortBy=submittedDate&sortOrder=descending",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-arxiv-feed",
+      "name": "Fetch arXiv feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const feed = $json.body ?? $json.data ?? '';\nconst entries = feed.match(/<entry>[\\s\\S]*?<\\/entry>/g) ?? [];\nconst value = (entry, tag) => (entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\nreturn entries.map((entry) => {\n  const id = value(entry, 'id');\n  const pdfUrl = entry.match(/<link[^>]+title=\\\"pdf\\\"[^>]+href=\\\"([^\\\"]+)\\\"/)?.[1] ?? `${id.replace('/abs/', '/pdf/')}.pdf`;\n  return { json: { arxivId: id.split('/').pop(), title: value(entry, 'title'), abstract: value(entry, 'summary'), published: value(entry, 'published'), pdfUrl } };\n});"
+      },
+      "id": "normalise-papers",
+      "name": "Normalise papers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.pdfUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "download-pdf",
+      "name": "Download paper PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "inputBinaryField": "data",
+        "options": {}
+      },
+      "id": "extract-pdf",
+      "name": "Extract PDF text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalise papers').item.json;\nconst text = String($json.text ?? $json.data ?? '').replace(/\\s+/g, ' ').trim();\nconst size = 1200;\nconst overlap = 180;\nconst chunks = [];\nfor (let start = 0, index = 0; start < text.length; start += size - overlap, index += 1) {\n  const content = text.slice(start, start + size);\n  if (content.length >= 200) {\n    chunks.push({ json: { ...source, chunk: content, chunkId: `${source.arxivId}-${index}` } });\n  }\n}\nreturn chunks;"
+      },
+      "id": "chunk-paper",
+      "name": "Chunk paper text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.chunk } }}",
+        "options": {}
+      },
+      "id": "embed-chunk",
+      "name": "Embed chunk with Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunk = $('Chunk paper text').item.json;\nreturn [{ json: { ...chunk, embedding: $json.embeddings?.[0] ?? [] } }];"
+      },
+      "id": "combine-chunk-embedding",
+      "name": "Combine chunk and embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://chroma:8000/api/v1/collections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'research_papers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "create-collection",
+      "name": "Create research collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/upsert' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ids: [ $('Combine chunk and embedding').item.json.chunkId ], documents: [ $('Combine chunk and embedding').item.json.chunk ], embeddings: [ $('Combine chunk and embedding').item.json.embedding ], metadatas: [ { arxivId: $('Combine chunk and embedding').item.json.arxivId, title: $('Combine chunk and embedding').item.json.title, published: $('Combine chunk and embedding').item.json.published, pdfUrl: $('Combine chunk and embedding').item.json.pdfUrl } ] } }}",
+        "options": {}
+      },
+      "id": "upsert-chunk",
+      "name": "Upsert chunk to ChromaDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const papers = $('Normalise papers').all().map((item) => item.json);\nconst MAX_ABSTRACT = 220;\nconst lines = papers.map((paper, index) => {\n  const abstract = paper.abstract.length > MAX_ABSTRACT ? `${paper.abstract.slice(0, MAX_ABSTRACT)}...` : paper.abstract;\n  return `${index + 1}. ${paper.title}\\narXiv:${paper.arxivId} | ${paper.pdfUrl}\\n${abstract}`;\n}).join('\\n\\n');\nconst header = `Daily arXiv digest -- ${papers.length} paper(s) indexed today\\n\\n`;\nconst digestText = (header + lines).slice(0, 4000);\nreturn [{ json: { digestText, paperCount: papers.length } }];"
+      },
+      "id": "build-daily-digest",
+      "name": "Build daily digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 0]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_DIGEST_CHAT_ID",
+        "text": "={{ $json.digestText }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "send-daily-digest",
+      "name": "Send daily digest",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2640, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily arXiv schedule": { "main": [[{ "node": "Fetch arXiv feed", "type": "main", "index": 0 }]] },
+    "Fetch arXiv feed": { "main": [[{ "node": "Normalise papers", "type": "main", "index": 0 }]] },
+    "Normalise papers": { "main": [[{ "node": "Download paper PDF", "type": "main", "index": 0 }]] },
+    "Download paper PDF": { "main": [[{ "node": "Extract PDF text", "type": "main", "index": 0 }]] },
+    "Extract PDF text": { "main": [[{ "node": "Chunk paper text", "type": "main", "index": 0 }]] },
+    "Chunk paper text": { "main": [[{ "node": "Embed chunk with Ollama", "type": "main", "index": 0 }]] },
+    "Embed chunk with Ollama": { "main": [[{ "node": "Combine chunk and embedding", "type": "main", "index": 0 }]] },
+    "Combine chunk and embedding": { "main": [[{ "node": "Create research collection", "type": "main", "index": 0 }]] },
+    "Create research collection": { "main": [[{ "node": "Upsert chunk to ChromaDB", "type": "main", "index": 0 }]] },
+    "Upsert chunk to ChromaDB": { "main": [[{ "node": "Build daily digest", "type": "main", "index": 0 }]] },
+    "Build daily digest": { "main": [[{ "node": "Send daily digest", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1"
+}

@@ -1,0 +1,52 @@
+services:
+  n8n:
+    image: n8nio/n8n:1.122.3
+    container_name: research-intelligence-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-research-intelligence-local-development-key-change-before-production}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHROMA_BASE_URL: http://chroma:8000
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/files/workflows:ro
+    depends_on:
+      - chroma
+      - ollama
+
+  chroma:
+    image: chromadb/chroma:0.5.23
+    container_name: research-intelligence-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  ollama:
+    image: ollama/ollama:0.5.13
+    container_name: research-intelligence-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  ollama-init:
+    image: ollama/ollama:0.5.13
+    container_name: research-intelligence-ollama-init
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull nomic-embed-text && ollama pull llama3.2"]
+    restart: "no"
+
+volumes:
+  n8n_data:
+  chroma_data:
+  ollama_data:

@@ -1,0 +1,134 @@
+{
+  "name": "Research Intelligence - Telegram Cited Q&A",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram question",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = $json.message;\nreturn [{ json: { chatId: message.chat.id, question: message.text?.trim() ?? '' } }];"
+      },
+      "id": "normalise-question",
+      "name": "Normalise question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://chroma:8000/api/v1/collections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'research_papers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "create-collection",
+      "name": "Create research collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.question } }}",
+        "options": {}
+      },
+      "id": "embed-question",
+      "name": "Embed question with Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $('Create research collection').item.json.id + '/query' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query_embeddings: [$json.embeddings[0]], n_results: 4, include: ['documents', 'metadatas', 'distances'] } }}",
+        "options": {}
+      },
+      "id": "query-chroma",
+      "name": "Retrieve relevant chunks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const question = $('Normalise question').item.json;\nconst documents = $json.documents?.[0] ?? [];\nconst metadata = $json.metadatas?.[0] ?? [];\nconst context = documents.map((text, index) => `[${index + 1}] ${metadata[index]?.title ?? 'Unknown paper'} (${metadata[index]?.arxivId ?? 'n/a'})\\n${text}`).join('\\n\\n');\nconst prompt = `Answer only from the supplied research context. State when the context is insufficient. Cite every factual claim using [1], [2], etc. End with a Sources section mapping each citation to paper title and arXiv ID.\\n\\nQuestion: ${question.question}\\n\\nResearch context:\\n${context}`;\nreturn [{ json: { ...question, prompt } }];"
+      },
+      "id": "build-grounded-prompt",
+      "name": "Build grounded prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama3.2', stream: false, messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
+        "options": {}
+      },
+      "id": "generate-answer",
+      "name": "Generate cited answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 0]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Build grounded prompt').item.json.chatId }}",
+        "text": "={{ $json.message.content }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "reply-telegram",
+      "name": "Reply with cited answer",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1680, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram question": { "main": [[{ "node": "Normalise question", "type": "main", "index": 0 }]] },
+    "Normalise question": { "main": [[{ "node": "Create research collection", "type": "main", "index": 0 }]] },
+    "Create research collection": { "main": [[{ "node": "Embed question with Ollama", "type": "main", "index": 0 }]] },
+    "Embed question with Ollama": { "main": [[{ "node": "Retrieve relevant chunks", "type": "main", "index": 0 }]] },
+    "Retrieve relevant chunks": { "main": [[{ "node": "Build grounded prompt", "type": "main", "index": 0 }]] },
+    "Build grounded prompt": { "main": [[{ "node": "Generate cited answer", "type": "main", "index": 0 }]] },
+    "Generate cited answer": { "main": [[{ "node": "Reply with cited answer", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1"
+}
