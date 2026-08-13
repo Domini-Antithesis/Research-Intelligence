@@ -6,7 +6,7 @@
         "updates": ["message"]
       },
       "id": "telegram-trigger",
-      "name": "Telegram question",
+      "name": "TelegramTrigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.2,
       "position": [0, 0],
@@ -26,6 +26,148 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "is-subscribe-cond",
+              "leftValue": "={{ $json.question }}",
+              "rightValue": "/subscribe",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-subscribe",
+      "name": "Is subscribe command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, -260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://chroma:8000/api/v1/collections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "get-subscribers-collection",
+      "name": "Get subscribers collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, -360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/upsert' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ids: [ String($('Normalise question').item.json.chatId) ], documents: [ String($('Normalise question').item.json.chatId) ], embeddings: [[0]], metadatas: [ { chatId: $('Normalise question').item.json.chatId } ] } }}",
+        "options": {}
+      },
+      "id": "add-subscriber",
+      "name": "Add subscriber",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, -360]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Normalise question').item.json.chatId }}",
+        "text": "You're subscribed! You'll receive the daily research digest each morning. Send /unsubscribe anytime to stop.",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "id": "reply-subscribed",
+      "name": "Reply subscribed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, -360],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "is-unsubscribe-cond",
+              "leftValue": "={{ $json.question }}",
+              "rightValue": "/unsubscribe",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-unsubscribe",
+      "name": "Is unsubscribe command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://chroma:8000/api/v1/collections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "get-subscribers-collection-unsub",
+      "name": "Get subscribers collection (unsub)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/delete' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ids: [ String($('Normalise question').item.json.chatId) ] } }}",
+        "options": {}
+      },
+      "id": "remove-subscriber",
+      "name": "Remove subscriber",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, -140]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Normalise question').item.json.chatId }}",
+        "text": "You're unsubscribed from the daily digest.",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "id": "reply-unsubscribed",
+      "name": "Reply unsubscribed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, -140],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
     },
     {
       "parameters": {
@@ -120,8 +262,24 @@
     }
   ],
   "connections": {
-    "Telegram question": { "main": [[{ "node": "Normalise question", "type": "main", "index": 0 }]] },
-    "Normalise question": { "main": [[{ "node": "Create research collection", "type": "main", "index": 0 }]] },
+    "TelegramTrigger": { "main": [[{ "node": "Normalise question", "type": "main", "index": 0 }]] },
+    "Normalise question": { "main": [[{ "node": "Is subscribe command?", "type": "main", "index": 0 }]] },
+    "Is subscribe command?": {
+      "main": [
+        [{ "node": "Get subscribers collection", "type": "main", "index": 0 }],
+        [{ "node": "Is unsubscribe command?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get subscribers collection": { "main": [[{ "node": "Add subscriber", "type": "main", "index": 0 }]] },
+    "Add subscriber": { "main": [[{ "node": "Reply subscribed", "type": "main", "index": 0 }]] },
+    "Is unsubscribe command?": {
+      "main": [
+        [{ "node": "Get subscribers collection (unsub)", "type": "main", "index": 0 }],
+        [{ "node": "Create research collection", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get subscribers collection (unsub)": { "main": [[{ "node": "Remove subscriber", "type": "main", "index": 0 }]] },
+    "Remove subscriber": { "main": [[{ "node": "Reply unsubscribed", "type": "main", "index": 0 }]] },
     "Create research collection": { "main": [[{ "node": "Embed question with Ollama", "type": "main", "index": 0 }]] },
     "Embed question with Ollama": { "main": [[{ "node": "Retrieve relevant chunks", "type": "main", "index": 0 }]] },
     "Retrieve relevant chunks": { "main": [[{ "node": "Build grounded prompt", "type": "main", "index": 0 }]] },

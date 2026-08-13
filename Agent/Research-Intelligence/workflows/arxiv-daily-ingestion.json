@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const feed = $json.body ?? $json.data ?? '';\nconst entries = feed.match(/<entry>[\\s\\S]*?<\\/entry>/g) ?? [];\nconst value = (entry, tag) => (entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\nreturn entries.map((entry) => {\n  const id = value(entry, 'id');\n  const pdfUrl = entry.match(/<link[^>]+title=\\\"pdf\\\"[^>]+href=\\\"([^\\\"]+)\\\"/)?.[1] ?? `${id.replace('/abs/', '/pdf/')}.pdf`;\n  return { json: { arxivId: id.split('/').pop(), title: value(entry, 'title'), abstract: value(entry, 'summary'), published: value(entry, 'published'), pdfUrl } };\n});"
+        "jsCode": "const feed = $json.body ?? $json.data ?? '';\nconst entries = feed.match(/<entry>[\\s\\S]*?<\\/entry>/g) ?? [];\nconst value = (entry, tag) => (entry.match(new RegExp(`<${tag}[^>]*>([\\\\s\\\\S]*?)<\\\\/${tag}>`))?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\nreturn entries.map((entry) => {\n  const id = value(entry, 'id');\n  const pdfUrl = entry.match(/<link[^>]+title=\\\"pdf\\\"[^>]+href=\\\"([^\\\"]+)\\\"/)?.[1] ?? `${id.replace('/abs/', '/pdf/')}.pdf`;\n  return { json: { arxivId: id.split('/').pop(), title: value(entry, 'title'), abstract: value(entry, 'summary'), published: value(entry, 'published'), pdfUrl } };\n});"
       },
       "id": "normalise-papers",
       "name": "Normalise papers",
@@ -77,7 +77,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const source = $('Normalise papers').item.json;\nconst text = String($json.text ?? $json.data ?? '').replace(/\\s+/g, ' ').trim();\nconst size = 1200;\nconst overlap = 180;\nconst chunks = [];\nfor (let start = 0, index = 0; start < text.length; start += size - overlap, index += 1) {\n  const content = text.slice(start, start + size);\n  if (content.length >= 200) {\n    chunks.push({ json: { ...source, chunk: content, chunkId: `${source.arxivId}-${index}` } });\n  }\n}\nreturn chunks;"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const size = 1200;\nconst overlap = 180;\nconst papers = $('Normalise papers').all();\nconst chunks = [];\n$input.all().forEach((item, i) => {\n  const source = papers[i].json;\n  const text = String(item.json.text ?? item.json.data ?? '').replace(/\\s+/g, ' ').trim();\n  for (let start = 0, index = 0; start < text.length; start += size - overlap, index += 1) {\n    const content = text.slice(start, start + size);\n    if (content.length >= 200) {\n      chunks.push({ json: { ...source, chunk: content, chunkId: `${source.arxivId}-${index}` } });\n    }\n  }\n});\nreturn chunks;"
       },
       "id": "chunk-paper",
       "name": "Chunk paper text",
@@ -102,7 +103,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const chunk = $('Chunk paper text').item.json;\nreturn [{ json: { ...chunk, embedding: $json.embeddings?.[0] ?? [] } }];"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const chunks = $('Chunk paper text').all();\nreturn $input.all().map((item, i) => ({\n  json: { ...chunks[i].json, embedding: item.json.embeddings?.[0] ?? [] }\n}));"
       },
       "id": "combine-chunk-embedding",
       "name": "Combine chunk and embedding",
@@ -153,8 +155,49 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "http://chroma:8000/api/v1/collections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "get-subscribers-collection",
+      "name": "Get subscribers collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/get' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { limit: 1000 } }}",
+        "options": {}
+      },
+      "id": "list-subscribers",
+      "name": "List subscribers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const digestText = $('Build daily digest').first().json.digestText;\nconst ids = $json.ids ?? [];\nreturn ids.map((chatId) => ({ json: { chatId, digestText } }));"
+      },
+      "id": "expand-subscribers",
+      "name": "Expand subscribers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3120, 0]
+    },
+    {
+      "parameters": {
         "operation": "sendMessage",
-        "chatId": "REPLACE_WITH_DIGEST_CHAT_ID",
+        "chatId": "={{ $json.chatId }}",
         "text": "={{ $json.digestText }}",
         "additionalFields": {
           "appendAttribution": false
@@ -164,7 +207,7 @@
       "name": "Send daily digest",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2640, 0],
+      "position": [3360, 0],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
@@ -184,7 +227,10 @@
     "Combine chunk and embedding": { "main": [[{ "node": "Create research collection", "type": "main", "index": 0 }]] },
     "Create research collection": { "main": [[{ "node": "Upsert chunk to ChromaDB", "type": "main", "index": 0 }]] },
     "Upsert chunk to ChromaDB": { "main": [[{ "node": "Build daily digest", "type": "main", "index": 0 }]] },
-    "Build daily digest": { "main": [[{ "node": "Send daily digest", "type": "main", "index": 0 }]] }
+    "Build daily digest": { "main": [[{ "node": "Get subscribers collection", "type": "main", "index": 0 }]] },
+    "Get subscribers collection": { "main": [[{ "node": "List subscribers", "type": "main", "index": 0 }]] },
+    "List subscribers": { "main": [[{ "node": "Expand subscribers", "type": "main", "index": 0 }]] },
+    "Expand subscribers": { "main": [[{ "node": "Send daily digest", "type": "main", "index": 0 }]] }
   },
   "active": false,
   "settings": { "executionOrder": "v1" },
