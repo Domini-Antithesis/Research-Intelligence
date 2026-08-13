@@ -92,7 +92,7 @@
         "url": "http://ollama:11434/api/embed",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.chunk } }}",
+        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.chunk, keep_alive: '30m' } }}",
         "options": {}
       },
       "id": "embed-chunk",

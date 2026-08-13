@@ -190,7 +190,7 @@
         "url": "http://ollama:11434/api/embed",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.question } }}",
+        "jsonBody": "={{ { model: 'nomic-embed-text', input: $('Normalise question').item.json.question, keep_alive: '30m' } }}",
         "options": {}
       },
       "id": "embed-question",
@@ -230,7 +230,7 @@
         "url": "http://ollama:11434/api/chat",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'llama3.2', stream: false, messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
+        "jsonBody": "={{ { model: 'llama3.2', stream: false, keep_alive: '30m', messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
         "options": {}
       },
       "id": "generate-answer",
