@@ -1,0 +1,19 @@
+# Research Intelligence — requirements
+#
+# This project has no Python application code of its own. Everything runs
+# inside Docker containers (n8n, ChromaDB, Ollama) orchestrated by
+# docker-compose.yml, and the actual bot logic lives in the two n8n workflow
+# JSON files under workflows/. There is nothing here to `pip install`.
+#
+# --- System-level requirements (not pip packages) ---
+#   Docker Desktop >= 24.x   (Windows/Mac) or Docker Engine + Compose v2 (Linux)
+#   Docker Compose v2        (bundled with modern Docker Desktop; `docker compose version`)
+#   A Telegram account       (to create a bot via @BotFather)
+#   ~6 GB free disk          (n8n + Chroma + Ollama images, plus the nomic-embed-text
+#                             and llama3.2 models pulled automatically on first run)
+#   8 GB+ RAM recommended    (llama3.2 running locally via Ollama)
+#
+# --- Optional: only if you want to re-run ad-hoc verification/debugging ---
+# scripts against ChromaDB or n8n's REST API (not required to use the bot itself).
+# These use only Python's standard library — no third-party packages needed:
+#   python>=3.10
