@@ -3,7 +3,7 @@ services:
     image: n8nio/n8n:1.122.3
     container_name: research-intelligence-n8n
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     environment:
       N8N_HOST: ${N8N_HOST:-localhost}
       N8N_PORT: 5678
@@ -14,29 +14,39 @@ services:
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       OLLAMA_BASE_URL: http://ollama:11434
       CHROMA_BASE_URL: http://chroma:8000
+      # Passed through so workflow expressions can read them via {{$env.VAR}}.
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      GENERATION_MODEL: ${GENERATION_MODEL:-llama3.2}
+      ARXIV_MAX_RESULTS: ${ARXIV_MAX_RESULTS:-5}
+      INGESTION_CRON: ${INGESTION_CRON:-0 8 * * *}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./workflows:/files/workflows:ro
     depends_on:
       - chroma
       - ollama
+    restart: unless-stopped
 
   chroma:
     image: chromadb/chroma:0.5.23
     container_name: research-intelligence-chroma
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:0.5.13
     container_name: research-intelligence-ollama
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    restart: unless-stopped
 
+  # One-shot model puller. Runs on every `docker compose up` but is a no-op
+  # if the models are already cached in the ollama_data volume.
   ollama-init:
     image: ollama/ollama:0.5.13
     container_name: research-intelligence-ollama-init
@@ -44,8 +54,66 @@ services:
       - ollama
     environment:
       OLLAMA_HOST: ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull nomic-embed-text && ollama pull llama3.2"]
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      GENERATION_MODEL: ${GENERATION_MODEL:-llama3.2}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        ollama pull "$${EMBEDDING_MODEL}"
+        ollama pull "$${GENERATION_MODEL}"
     restart: "no"
+
+  # One-shot first-boot setup: creates the n8n owner account, provisions the
+  # Chroma collections (research papers, subscribers, arXiv category watchlist,
+  # question log), seeds an example watchlist, creates the Telegram credential,
+  # then imports and activates both workflows. Idempotent -- it exits
+  # immediately on an already-set-up stack.
+  bootstrap:
+    image: node:22-alpine
+    container_name: research-intelligence-bootstrap
+    depends_on:
+      - n8n
+      - chroma
+    environment:
+      N8N_BASE_URL: http://n8n:5678
+      CHROMA_BASE_URL: http://chroma:8000
+      N8N_OWNER_EMAIL: ${N8N_OWNER_EMAIL:-}
+      N8N_OWNER_PASSWORD: ${N8N_OWNER_PASSWORD:-}
+      N8N_OWNER_FIRST_NAME: ${N8N_OWNER_FIRST_NAME:-Research}
+      N8N_OWNER_LAST_NAME: ${N8N_OWNER_LAST_NAME:-Intelligence}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ARXIV_CATEGORIES: ${ARXIV_CATEGORIES:-cs.AI}
+      ARXIV_MAX_RESULTS: ${ARXIV_MAX_RESULTS:-5}
+      WORKFLOWS_DIR: /workflows
+    volumes:
+      - ./bootstrap:/bootstrap:ro
+      - ./workflows:/workflows:ro
+    command: ["node", "/bootstrap/bootstrap.js"]
+    restart: "no"
+
+  dashboard:
+    image: node:22-alpine
+    container_name: research-intelligence-dashboard
+    # Bound to 127.0.0.1 so the dashboard (and its first-run setup page) is
+    # reachable only from this machine.
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8080}:8080"
+    environment:
+      DASHBOARD_PORT: 8080
+      N8N_BASE_URL: http://n8n:5678
+      CHROMA_BASE_URL: http://chroma:8000
+      OLLAMA_BASE_URL: http://ollama:11434
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Where the setup page writes the generated .env. Mounted writable below;
+      # the server only ever writes this one file inside it.
+      PROJECT_DIR: /project
+    volumes:
+      - ./dashboard:/dashboard:ro
+      - ./:/project
+    command: ["node", "/dashboard/server.js"]
+    restart: unless-stopped
 
 volumes:
   n8n_data:

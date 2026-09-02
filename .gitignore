@@ -1,0 +1,7 @@
+# Real secrets live only in .env, which must never be committed. Unlike the
+# n8n encryption key in docker-compose.yml (a local dev-only fallback), the
+# variables in this project's .env are live third-party credentials tied to
+# the user's real accounts (Telegram bot token, tunnel URL, n8n owner login).
+# They must never enter git history, even as a "placeholder that gets swapped
+# later".
+.env

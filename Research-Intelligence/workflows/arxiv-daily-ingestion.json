@@ -20,7 +20,48 @@
     },
     {
       "parameters": {
-        "url": "https://export.arxiv.org/api/query?search_query=cat:cs.AI&start=0&max_results=5&sortBy=submittedDate&sortOrder=descending",
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'arxiv_categories', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "get-categories-collection",
+      "name": "Get categories collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/get' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { limit: 200, include: ['metadatas'] } }}",
+        "options": {}
+      },
+      "id": "list-categories",
+      "name": "List watched categories",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ids = $json.ids ?? [];\nconst metadatas = $json.metadatas ?? [];\nlet active = ids\n  .map((code, i) => ({ code, ...(metadatas[i] || {}) }))\n  .filter((entry) => entry.active !== false && entry.code);\nif (active.length === 0) {\n  // Fall back to the env-configured default so an empty watchlist doesn't\n  // silently produce a no-op ingestion.\n  const fallback = String($env.ARXIV_CATEGORIES || 'cs.AI').split(',').map((c) => c.trim()).filter(Boolean);\n  active = fallback.map((code) => ({ code, maxResults: Number($env.ARXIV_MAX_RESULTS || 5) }));\n}\nreturn active.map((entry) => {\n  const maxResults = Number(entry.maxResults ?? $env.ARXIV_MAX_RESULTS ?? 5);\n  const url = `https://export.arxiv.org/api/query?search_query=cat:${encodeURIComponent(entry.code)}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;\n  return { json: { category: entry.code, maxResults, feedUrl: url } };\n});"
+      },
+      "id": "build-category-urls",
+      "name": "Build feed URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.feedUrl }}",
         "options": {
           "response": {
             "response": {
@@ -33,17 +74,18 @@
       "name": "Fetch arXiv feed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [240, 0]
+      "position": [960, 0]
     },
     {
       "parameters": {
-        "jsCode": "const feed = $json.body ?? $json.data ?? '';\nconst entries = feed.match(/<entry>[\\s\\S]*?<\\/entry>/g) ?? [];\nconst value = (entry, tag) => (entry.match(new RegExp(`<${tag}[^>]*>([\\\\s\\\\S]*?)<\\\\/${tag}>`))?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\nreturn entries.map((entry) => {\n  const id = value(entry, 'id');\n  const pdfUrl = entry.match(/<link[^>]+title=\\\"pdf\\\"[^>]+href=\\\"([^\\\"]+)\\\"/)?.[1] ?? `${id.replace('/abs/', '/pdf/')}.pdf`;\n  return { json: { arxivId: id.split('/').pop(), title: value(entry, 'title'), abstract: value(entry, 'summary'), published: value(entry, 'published'), pdfUrl } };\n});"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const feeds = $input.all();\nconst categories = $('Build feed URLs').all();\nconst results = [];\nconst value = (entry, tag) => (entry.match(new RegExp(`<${tag}[^>]*>([\\\\s\\\\S]*?)<\\\\/${tag}>`))?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\nfeeds.forEach((item, i) => {\n  const feed = item.json.body ?? item.json.data ?? '';\n  const category = categories[i]?.json.category || 'unknown';\n  const entries = feed.match(/<entry>[\\s\\S]*?<\\/entry>/g) ?? [];\n  for (const entry of entries) {\n    const id = value(entry, 'id');\n    const pdfUrl = entry.match(/<link[^>]+title=\\\"pdf\\\"[^>]+href=\\\"([^\\\"]+)\\\"/)?.[1] ?? `${id.replace('/abs/', '/pdf/')}.pdf`;\n    results.push({ json: { arxivId: id.split('/').pop(), title: value(entry, 'title'), abstract: value(entry, 'summary'), published: value(entry, 'published'), pdfUrl, category } });\n  }\n});\nreturn results;"
       },
       "id": "normalise-papers",
       "name": "Normalise papers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 0]
+      "position": [1200, 0]
     },
     {
       "parameters": {
@@ -61,7 +103,11 @@
       "name": "Download paper PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, 0]
+      "position": [1440, 0],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -73,33 +119,33 @@
       "name": "Extract PDF text",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [960, 0]
+      "position": [1680, 0]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const size = 1200;\nconst overlap = 180;\nconst papers = $('Normalise papers').all();\nconst chunks = [];\n$input.all().forEach((item, i) => {\n  const source = papers[i].json;\n  const text = String(item.json.text ?? item.json.data ?? '').replace(/\\s+/g, ' ').trim();\n  for (let start = 0, index = 0; start < text.length; start += size - overlap, index += 1) {\n    const content = text.slice(start, start + size);\n    if (content.length >= 200) {\n      chunks.push({ json: { ...source, chunk: content, chunkId: `${source.arxivId}-${index}` } });\n    }\n  }\n});\nreturn chunks;"
+        "jsCode": "const size = 1200;\nconst overlap = 180;\nconst papers = $('Normalise papers').all();\nconst chunks = [];\n$input.all().forEach((item, i) => {\n  const source = papers[i]?.json;\n  if (!source) return;\n  const text = String(item.json.text ?? item.json.data ?? '').replace(/\\s+/g, ' ').trim();\n  for (let start = 0, index = 0; start < text.length; start += size - overlap, index += 1) {\n    const content = text.slice(start, start + size);\n    if (content.length >= 200) {\n      chunks.push({ json: { ...source, chunk: content, chunkId: `${source.arxivId}-${index}` } });\n    }\n  }\n});\nreturn chunks;"
       },
       "id": "chunk-paper",
       "name": "Chunk paper text",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1200, 0]
+      "position": [1920, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama:11434/api/embed",
+        "url": "={{ ($env.OLLAMA_BASE_URL || 'http://ollama:11434') + '/api/embed' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'nomic-embed-text', input: $json.chunk, keep_alive: '30m' } }}",
+        "jsonBody": "={{ { model: ($env.EMBEDDING_MODEL || 'nomic-embed-text'), input: $json.chunk, keep_alive: '30m' } }}",
         "options": {}
       },
       "id": "embed-chunk",
       "name": "Embed chunk with Ollama",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1440, 0],
+      "position": [2160, 0],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -113,12 +159,12 @@
       "name": "Combine chunk and embedding",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1680, 0]
+      "position": [2400, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://chroma:8000/api/v1/collections",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { name: 'research_papers', get_or_create: true } }}",
@@ -128,22 +174,22 @@
       "name": "Create research collection",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1920, 0]
+      "position": [2640, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/upsert' }}",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/upsert' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { ids: [ $('Combine chunk and embedding').item.json.chunkId ], documents: [ $('Combine chunk and embedding').item.json.chunk ], embeddings: [ $('Combine chunk and embedding').item.json.embedding ], metadatas: [ { arxivId: $('Combine chunk and embedding').item.json.arxivId, title: $('Combine chunk and embedding').item.json.title, published: $('Combine chunk and embedding').item.json.published, pdfUrl: $('Combine chunk and embedding').item.json.pdfUrl } ] } }}",
+        "jsonBody": "={{ { ids: [ $('Combine chunk and embedding').item.json.chunkId ], documents: [ $('Combine chunk and embedding').item.json.chunk ], embeddings: [ $('Combine chunk and embedding').item.json.embedding ], metadatas: [ { arxivId: $('Combine chunk and embedding').item.json.arxivId, title: $('Combine chunk and embedding').item.json.title, published: $('Combine chunk and embedding').item.json.published, pdfUrl: $('Combine chunk and embedding').item.json.pdfUrl, category: $('Combine chunk and embedding').item.json.category } ] } }}",
         "options": {}
       },
       "id": "upsert-chunk",
       "name": "Upsert chunk to ChromaDB",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2160, 0],
+      "position": [2880, 0],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
@@ -152,18 +198,18 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const papers = $('Normalise papers').all().map((item) => item.json);\nconst MAX_ABSTRACT = 220;\nconst lines = papers.map((paper, index) => {\n  const abstract = paper.abstract.length > MAX_ABSTRACT ? `${paper.abstract.slice(0, MAX_ABSTRACT)}...` : paper.abstract;\n  return `${index + 1}. ${paper.title}\\narXiv:${paper.arxivId} | ${paper.pdfUrl}\\n${abstract}`;\n}).join('\\n\\n');\nconst header = `Daily arXiv digest -- ${papers.length} paper(s) indexed today\\n\\n`;\nconst digestText = (header + lines).slice(0, 4000);\nreturn [{ json: { digestText, paperCount: papers.length } }];"
+        "jsCode": "const papers = $('Normalise papers').all().map((item) => item.json);\nconst uniq = new Map();\nfor (const p of papers) {\n  if (!uniq.has(p.arxivId)) uniq.set(p.arxivId, p);\n}\nconst unique = Array.from(uniq.values());\nconst categories = [...new Set(unique.map((p) => p.category).filter(Boolean))];\nconst MAX_ABSTRACT = 220;\nconst lines = unique.map((paper, index) => {\n  const abstract = (paper.abstract || '').length > MAX_ABSTRACT ? `${paper.abstract.slice(0, MAX_ABSTRACT)}...` : (paper.abstract || '');\n  return `${index + 1}. ${paper.title}\\n   arXiv:${paper.arxivId} | ${paper.pdfUrl}\\n   ${abstract}`;\n}).join('\\n\\n');\nconst header = `Daily arXiv digest -- ${unique.length} paper(s) indexed today` + (categories.length ? ` from ${categories.join(', ')}` : '') + `\\n\\n`;\nconst digestText = (header + lines).slice(0, 4000);\nreturn [{ json: { digestText, paperCount: unique.length, categoryCount: categories.length } }];"
       },
       "id": "build-daily-digest",
       "name": "Build daily digest",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2400, 0]
+      "position": [3120, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://chroma:8000/api/v1/collections",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
@@ -173,12 +219,12 @@
       "name": "Get subscribers collection",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2640, 0]
+      "position": [3360, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/get' }}",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/get' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { limit: 1000 } }}",
@@ -188,18 +234,18 @@
       "name": "List subscribers",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2880, 0]
+      "position": [3600, 0]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const digestText = $('Build daily digest').first().json.digestText;\nconst ids = $json.ids ?? [];\nreturn ids.map((chatId) => ({ json: { chatId, digestText } }));"
+        "jsCode": "const digestText = $('Build daily digest').first().json.digestText;\nconst ids = $json.ids ?? [];\nif (ids.length === 0) return [];\nreturn ids.map((chatId) => ({ json: { chatId, digestText } }));"
       },
       "id": "expand-subscribers",
       "name": "Expand subscribers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3120, 0]
+      "position": [3840, 0]
     },
     {
       "parameters": {
@@ -214,7 +260,7 @@
       "name": "Send daily digest",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [3360, 0],
+      "position": [4080, 0],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
@@ -224,7 +270,10 @@
     }
   ],
   "connections": {
-    "Daily arXiv schedule": { "main": [[{ "node": "Fetch arXiv feed", "type": "main", "index": 0 }]] },
+    "Daily arXiv schedule": { "main": [[{ "node": "Get categories collection", "type": "main", "index": 0 }]] },
+    "Get categories collection": { "main": [[{ "node": "List watched categories", "type": "main", "index": 0 }]] },
+    "List watched categories": { "main": [[{ "node": "Build feed URLs", "type": "main", "index": 0 }]] },
+    "Build feed URLs": { "main": [[{ "node": "Fetch arXiv feed", "type": "main", "index": 0 }]] },
     "Fetch arXiv feed": { "main": [[{ "node": "Normalise papers", "type": "main", "index": 0 }]] },
     "Normalise papers": { "main": [[{ "node": "Download paper PDF", "type": "main", "index": 0 }]] },
     "Download paper PDF": { "main": [[{ "node": "Extract PDF text", "type": "main", "index": 0 }]] },
@@ -241,5 +290,5 @@
   },
   "active": false,
   "settings": { "executionOrder": "v1" },
-  "versionId": "1"
+  "versionId": "2"
 }

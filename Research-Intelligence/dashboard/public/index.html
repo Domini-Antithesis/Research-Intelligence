@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>Research Intelligence</h1>
+            <p class="brand-sub">arXiv digest &amp; cited Q&amp;A bot</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="last-updated" class="last-updated"></span>
+          <button id="refresh" class="btn" type="button">Refresh</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <div id="setup-notice" class="notice" hidden>
+        <strong>Telegram isn't configured yet.</strong>
+        <span
+          >Set <code>TELEGRAM_BOT_TOKEN</code> in <code>.env</code>, then restart the stack. The bot will start
+          answering the moment the Telegram credential is attached.</span
+        >
+      </div>
+      <div id="error-notice" class="notice notice-error" hidden></div>
+
+      <section aria-labelledby="components-heading">
+        <h2 id="components-heading" class="section-heading">Component health</h2>
+        <div class="card">
+          <div id="components" class="components"></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="kpi-heading">
+        <h2 id="kpi-heading" class="section-heading">Overview</h2>
+        <div class="kpi-row">
+          <article class="tile">
+            <p class="tile-label">Papers indexed</p>
+            <p class="tile-value" id="kpi-papers">&mdash;</p>
+            <p class="tile-note">unique arXiv IDs seen</p>
+          </article>
+          <article class="tile">
+            <p class="tile-label">Chunks embedded</p>
+            <p class="tile-value" id="kpi-chunks">&mdash;</p>
+            <p class="tile-note">in the vector store</p>
+          </article>
+          <article class="tile">
+            <p class="tile-label">Subscribers</p>
+            <p class="tile-value" id="kpi-subs">&mdash;</p>
+            <p class="tile-note">daily digest recipients</p>
+          </article>
+          <article class="tile">
+            <p class="tile-label">Questions asked</p>
+            <p class="tile-value" id="kpi-questions">&mdash;</p>
+            <p class="tile-note">from Telegram, all-time</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="papers-heading">
+        <h2 id="papers-heading" class="section-heading">Recently indexed papers</h2>
+        <div class="card">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Published</th>
+                  <th scope="col">Title</th>
+                  <th scope="col">arXiv ID</th>
+                </tr>
+              </thead>
+              <tbody id="papers-body">
+                <tr>
+                  <td colspan="3" class="empty">Loading&hellip;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="categories-heading">
+        <h2 id="categories-heading" class="section-heading">arXiv watchlist</h2>
+        <div class="card">
+          <p class="card-intro">
+            Categories to fetch each day. Each row is one arXiv category code (see
+            <a href="https://arxiv.org/category_taxonomy" target="_blank" rel="noopener noreferrer">the taxonomy</a>)
+            with its own per-run cap on how many papers to pull.
+          </p>
+
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Category</th>
+                  <th scope="col" class="num">Papers / run</th>
+                  <th scope="col">Active</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody id="categories-body">
+                <tr>
+                  <td colspan="4" class="empty">Loading&hellip;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <form id="category-form" class="add-form">
+            <h3 class="form-heading">Add a category</h3>
+            <div class="form-grid">
+              <label>
+                <span>Category code</span>
+                <input name="code" type="text" required placeholder="cs.LG" />
+              </label>
+              <label>
+                <span>Papers per run</span>
+                <input name="maxResults" type="number" min="1" max="50" value="5" />
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Add to watchlist</button>
+            <p id="form-error" class="form-error" hidden></p>
+          </form>
+        </div>
+      </section>
+
+      <section aria-labelledby="subs-heading">
+        <h2 id="subs-heading" class="section-heading">Digest subscribers</h2>
+        <div class="card">
+          <p class="card-intro">
+            Anyone who has sent <code>/subscribe</code> to the bot. Sending <code>/unsubscribe</code> removes them.
+            Chat IDs are Telegram's, not personal identifiers.
+          </p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Chat ID</th>
+                  <th scope="col">Subscribed</th>
+                </tr>
+              </thead>
+              <tbody id="subs-body">
+                <tr>
+                  <td colspan="2" class="empty">Loading&hellip;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="questions-heading">
+        <h2 id="questions-heading" class="section-heading">Recent questions</h2>
+        <div class="card">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Asked</th>
+                  <th scope="col">Chat ID</th>
+                  <th scope="col">Question</th>
+                  <th scope="col">Answered</th>
+                </tr>
+              </thead>
+              <tbody id="questions-body">
+                <tr>
+                  <td colspan="4" class="empty">Loading&hellip;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

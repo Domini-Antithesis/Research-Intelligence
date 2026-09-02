@@ -3,13 +3,18 @@
   "nodes": [
     {
       "parameters": {
-        "updates": ["message"]
+        "updates": [
+          "message"
+        ]
       },
       "id": "telegram-trigger",
       "name": "TelegramTrigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.2,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
@@ -19,40 +24,152 @@
     },
     {
       "parameters": {
-        "jsCode": "const message = $json.message;\nreturn [{ json: { chatId: message.chat.id, question: message.text?.trim() ?? '' } }];"
+        "jsCode": "const message = $json.message ?? {};\nconst raw = String(message.text ?? '').trim();\nconst lower = raw.toLowerCase();\nlet kind = 'question';\nif (lower === '/start' || lower === '/help') kind = 'help';\nelse if (lower === '/subscribe') kind = 'subscribe';\nelse if (lower === '/unsubscribe') kind = 'unsubscribe';\nelse if (lower === '/stats') kind = 'stats';\nreturn [{ json: {\n  chatId: message.chat?.id,\n  messageId: message.message_id,\n  question: raw,\n  kind,\n  askedAt: new Date().toISOString(),\n} }];"
       },
       "id": "normalise-question",
       "name": "Normalise question",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [240, 0]
+      "position": [
+        240,
+        0
+      ]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
+        "rules": {
+          "values": [
             {
-              "id": "is-subscribe-cond",
-              "leftValue": "={{ $json.question }}",
-              "rightValue": "/subscribe",
-              "operator": { "type": "string", "operation": "equals" }
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-help",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "help"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-subscribe",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "subscribe",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "subscribe"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-unsubscribe",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "unsubscribe",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "unsubscribe"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-stats",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "stats",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "stats"
             }
-          ],
-          "combinator": "and"
+          ]
         },
-        "options": {}
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
-      "id": "is-subscribe",
-      "name": "Is subscribe command?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [480, -260]
+      "id": "route-command",
+      "name": "Route command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Normalise question').item.json.chatId }}",
+        "text": "Hi! I'm the Research Intelligence bot. I read the newest arXiv papers every morning and answer questions about them, grounded in the actual paper text.\n\nCommands:\n/subscribe   -- receive the daily digest\n/unsubscribe -- stop the daily digest\n/stats       -- how many papers I've indexed\n/help        -- show this message\n\nOr just ask me a question! For example:\n   What is class activation mapping?\n   Which papers discuss retrieval-augmented generation?",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "reply-help",
+      "name": "Reply help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        -560
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://chroma:8000/api/v1/collections",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
@@ -62,35 +179,46 @@
       "name": "Get subscribers collection",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, -360]
+      "position": [
+        720,
+        -380
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/upsert' }}",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/upsert' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { ids: [ String($('Normalise question').item.json.chatId) ], documents: [ String($('Normalise question').item.json.chatId) ], embeddings: [[0]], metadatas: [ { chatId: $('Normalise question').item.json.chatId } ] } }}",
+        "jsonBody": "={{ { ids: [ String($('Normalise question').item.json.chatId) ], documents: [ String($('Normalise question').item.json.chatId) ], embeddings: [[0]], metadatas: [ { chatId: $('Normalise question').item.json.chatId, addedAt: $('Normalise question').item.json.askedAt } ] } }}",
         "options": {}
       },
       "id": "add-subscriber",
       "name": "Add subscriber",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, -360]
+      "position": [
+        960,
+        -380
+      ]
     },
     {
       "parameters": {
         "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "You're subscribed! You'll receive the daily research digest each morning. Send /unsubscribe anytime to stop.",
-        "additionalFields": { "appendAttribution": false }
+        "additionalFields": {
+          "appendAttribution": false
+        }
       },
       "id": "reply-subscribed",
       "name": "Reply subscribed",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1200, -360],
+      "position": [
+        1200,
+        -380
+      ],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
@@ -100,30 +228,8 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
-            {
-              "id": "is-unsubscribe-cond",
-              "leftValue": "={{ $json.question }}",
-              "rightValue": "/unsubscribe",
-              "operator": { "type": "string", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "is-unsubscribe",
-      "name": "Is unsubscribe command?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [480, -140]
-    },
-    {
-      "parameters": {
         "method": "POST",
-        "url": "http://chroma:8000/api/v1/collections",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { name: 'digest_subscribers', get_or_create: true } }}",
@@ -133,12 +239,15 @@
       "name": "Get subscribers collection (unsub)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, -140]
+      "position": [
+        720,
+        -200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $json.id + '/delete' }}",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/delete' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { ids: [ String($('Normalise question').item.json.chatId) ] } }}",
@@ -148,20 +257,28 @@
       "name": "Remove subscriber",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, -140]
+      "position": [
+        960,
+        -200
+      ]
     },
     {
       "parameters": {
         "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "You're unsubscribed from the daily digest.",
-        "additionalFields": { "appendAttribution": false }
+        "additionalFields": {
+          "appendAttribution": false
+        }
       },
       "id": "reply-unsubscribed",
       "name": "Reply unsubscribed",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1200, -140],
+      "position": [
+        1200,
+        -200
+      ],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
@@ -172,37 +289,144 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://chroma:8000/api/v1/collections",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { name: 'research_papers', get_or_create: true } }}",
         "options": {}
       },
-      "id": "create-collection",
-      "name": "Create research collection",
+      "id": "stats-collection",
+      "name": "Stats papers collection",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 0]
+      "position": [
+        720,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/count' }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "stats-count",
+      "name": "Stats chunk count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Normalise question').item.json.chatId }}",
+        "text": "={{ 'Index status: ' + ($json.body ?? $json.data ?? '0') + ' chunk(s) currently stored across the indexed papers. Ask me anything!' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "reply-stats",
+      "name": "Reply stats",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        -20
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Research Intelligence Telegram Bot"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama:11434/api/embed",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'nomic-embed-text', input: $('Normalise question').item.json.question, keep_alive: '30m' } }}",
+        "jsonBody": "={{ { name: 'question_log', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "question-log-collection",
+      "name": "Question log collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/upsert' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ids: [ 'q-' + String($('Normalise question').item.json.chatId) + '-' + String($('Normalise question').item.json.messageId) ], documents: [ String($('Normalise question').item.json.question).slice(0, 500) ], embeddings: [[0]], metadatas: [ { chatId: $('Normalise question').item.json.chatId, askedAt: $('Normalise question').item.json.askedAt, answered: false } ] } }}",
+        "options": {}
+      },
+      "id": "log-question",
+      "name": "Log question",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'research_papers', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "papers-collection",
+      "name": "Papers collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.OLLAMA_BASE_URL || 'http://ollama:11434') + '/api/embed' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: ($env.EMBEDDING_MODEL || 'nomic-embed-text'), input: $('Normalise question').item.json.question, keep_alive: '30m' } }}",
         "options": {}
       },
       "id": "embed-question",
       "name": "Embed question with Ollama",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, 0]
+      "position": [
+        1440,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://chroma:8000/api/v1/collections/' + $('Create research collection').item.json.id + '/query' }}",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $('Papers collection').item.json.id + '/query' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { query_embeddings: [$json.embeddings[0]], n_results: 4, include: ['documents', 'metadatas', 'distances'] } }}",
@@ -212,38 +436,61 @@
       "name": "Retrieve relevant chunks",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 0]
+      "position": [
+        1680,
+        200
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const question = $('Normalise question').item.json;\nconst documents = $json.documents?.[0] ?? [];\nconst metadata = $json.metadatas?.[0] ?? [];\nconst context = documents.map((text, index) => `[${index + 1}] ${metadata[index]?.title ?? 'Unknown paper'} (${metadata[index]?.arxivId ?? 'n/a'})\\n${text}`).join('\\n\\n');\nconst prompt = `Answer only from the supplied research context. State when the context is insufficient. Cite every factual claim using [1], [2], etc. End with a Sources section mapping each citation to paper title and arXiv ID.\\n\\nQuestion: ${question.question}\\n\\nResearch context:\\n${context}`;\nreturn [{ json: { ...question, prompt } }];"
+        "jsCode": "const question = $('Normalise question').item.json;\nconst documents = $json.documents?.[0] ?? [];\nconst metadata = $json.metadatas?.[0] ?? [];\nif (documents.length === 0) {\n  return [{ json: { ...question, prompt: null, empty: true, sourceCount: 0 } }];\n}\n// Label context entries as (Source n), not [n]: about a third of chunks are\n// body text carrying the paper's own [11]-style reference markers, and a [n]\n// instruction collides with those badly enough that the model starts citing\n// numbers that do not exist in the context.\nconst context = documents\n  .map((text, index) => `(Source ${index + 1}) ${metadata[index]?.title ?? 'Unknown paper'} [${metadata[index]?.arxivId ?? 'n/a'}]\\n${text}`)\n  .join('\\n\\n');\nconst valid = documents.map((_, i) => `(Source ${i + 1})`).join(', ');\nconst prompt = `Answer only from the supplied research context. State when the context is insufficient.\\n\\nCite every factual claim using ONLY these exact labels: ${valid}. Do not invent any other source label. The research text below contains the papers' own bracketed reference numbers such as [11] or [18] -- those are part of the quoted text and must never be used as citations.\\n\\nEnd with a Sources section listing each label you cited with its paper title and arXiv ID.\\n\\nQuestion: ${question.question}\\n\\nResearch context:\\n${context}`;\nreturn [{ json: { ...question, prompt, empty: false, sourceCount: documents.length } }];"
       },
       "id": "build-grounded-prompt",
       "name": "Build grounded prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1200, 0]
+      "position": [
+        1920,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama:11434/api/chat",
+        "url": "={{ ($env.OLLAMA_BASE_URL || 'http://ollama:11434') + '/api/chat' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'llama3.2', stream: false, keep_alive: '30m', messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
+        "jsonBody": "={{ $json.empty ? { model: ($env.GENERATION_MODEL || 'llama3.2'), stream: false, keep_alive: '30m', messages: [{ role: 'assistant', content: 'The research index does not yet cover this question. Try again once daily ingestion has run, or ask about the paper categories I already track.' }] } : { model: ($env.GENERATION_MODEL || 'llama3.2'), stream: false, keep_alive: '30m', messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
         "options": {}
       },
       "id": "generate-answer",
       "name": "Generate cited answer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1440, 0]
+      "position": [
+        2160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Deterministic backstop: the model is told twice (system message + user\n// prompt) never to invent a source label, and still sometimes does --\n// confirmed live, citing a 'Source 36' backed by a fabricated Nature paper\n// that was never retrieved. Two tiers: surgically strip the specific\n// patterns that carry fabricated content (a parenthesised citation, a\n// bibliography line), then a looser sweep for any other 'Source N' mention\n// in free text (e.g. \"Sources 1 and 36\") that the first pass can't safely\n// rewrite without risking broken grammar -- surfaced as a warning instead.\nconst raw = $json;\nconst promptCtx = $('Build grounded prompt').item.json;\nconst numSources = promptCtx.sourceCount || 0;\nlet answer = raw.message?.content || '';\nconst invalid = [];\n\nif (numSources > 0) {\n  // Tier 1a: parenthesised inline citations -- safe to replace in place.\n  answer = answer.replace(/\\(Source (\\d+)\\)/g, (match, n) => {\n    const num = Number(n);\n    if (num >= 1 && num <= numSources) return match;\n    invalid.push(num);\n    return '(uncited claim)';\n  });\n\n  // Tier 1b: fabricated bibliography lines -- drop the whole line, since\n  // everything after the colon is invented (title, journal, DOI, ...).\n  const lines = answer.split('\\n').filter((line) => {\n    const m = line.match(/^\\s*[-*]?\\s*Source (\\d+)\\s*:/i);\n    if (!m) return true;\n    const num = Number(m[1]);\n    if (num >= 1 && num <= numSources) return true;\n    invalid.push(num);\n    return false;\n  });\n  answer = lines.join('\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\n\n  // Tier 2: a looser sweep for numbers grammatically tied to the word\n  // 'Source'/'Sources' elsewhere in the prose (e.g. \"Sources 1 and 36\"),\n  // not just the parenthesised form Tier 1 rewrites. Anchored to numbers\n  // immediately following the word (joined only by 'and'/','/'&') so an\n  // unrelated number later in the same sentence -- a page, a year -- can't\n  // be swept in. Flagged rather than edited in place, since surgically\n  // rewriting arbitrary prose risks producing broken grammar.\n  const looseMatches = answer.matchAll(/\\bSources?\\s+(\\d+(?:\\s*(?:,|and|&)\\s*\\d+)*)/gi);\n  for (const m of looseMatches) {\n    const nums = m[1].match(/\\d+/g) || [];\n    for (const n of nums) {\n      const num = Number(n);\n      if (num < 1 || num > numSources) invalid.push(num);\n    }\n  }\n\n  if (invalid.length > 0) {\n    const uniq = [...new Set(invalid)];\n    answer += `\\n\\n\\u26a0\\ufe0f This answer referenced source number${uniq.length > 1 ? 's' : ''} ${uniq.join(', ')}, which ${uniq.length > 1 ? 'are' : 'is'} outside the ${numSources} passages actually retrieved -- likely hallucinated. Treat any claim tied to ${uniq.length > 1 ? 'those numbers' : 'that number'} with caution.`;\n  }\n}\n\nreturn { json: { ...raw, safeAnswer: answer, invalidCitationCount: invalid.length } };"
+      },
+      "id": "validate-citations",
+      "name": "Validate citations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        200
+      ]
     },
     {
       "parameters": {
         "operation": "sendMessage",
         "chatId": "={{ $('Build grounded prompt').item.json.chatId }}",
-        "text": "={{ $json.message.content }}",
+        "text": "={{ $json.safeAnswer }}",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -252,41 +499,298 @@
       "name": "Reply with cited answer",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1680, 0],
+      "position": [
+        2560,
+        200
+      ],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
           "name": "Research Intelligence Telegram Bot"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: 'question_log', get_or_create: true } }}",
+        "options": {}
+      },
+      "id": "question-log-mark-collection",
+      "name": "Question log (mark answered)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/upsert' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ids: [ 'q-' + String($('Normalise question').item.json.chatId) + '-' + String($('Normalise question').item.json.messageId) ], documents: [ String($('Normalise question').item.json.question).slice(0, 500) ], embeddings: [[0]], metadatas: [ { chatId: $('Normalise question').item.json.chatId, askedAt: $('Normalise question').item.json.askedAt, answered: true } ] } }}",
+        "options": {}
+      },
+      "id": "mark-answered",
+      "name": "Mark question answered",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        200
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
-    "TelegramTrigger": { "main": [[{ "node": "Normalise question", "type": "main", "index": 0 }]] },
-    "Normalise question": { "main": [[{ "node": "Is subscribe command?", "type": "main", "index": 0 }]] },
-    "Is subscribe command?": {
+    "TelegramTrigger": {
       "main": [
-        [{ "node": "Get subscribers collection", "type": "main", "index": 0 }],
-        [{ "node": "Is unsubscribe command?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Normalise question",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Get subscribers collection": { "main": [[{ "node": "Add subscriber", "type": "main", "index": 0 }]] },
-    "Add subscriber": { "main": [[{ "node": "Reply subscribed", "type": "main", "index": 0 }]] },
-    "Is unsubscribe command?": {
+    "Normalise question": {
       "main": [
-        [{ "node": "Get subscribers collection (unsub)", "type": "main", "index": 0 }],
-        [{ "node": "Create research collection", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Route command",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Get subscribers collection (unsub)": { "main": [[{ "node": "Remove subscriber", "type": "main", "index": 0 }]] },
-    "Remove subscriber": { "main": [[{ "node": "Reply unsubscribed", "type": "main", "index": 0 }]] },
-    "Create research collection": { "main": [[{ "node": "Embed question with Ollama", "type": "main", "index": 0 }]] },
-    "Embed question with Ollama": { "main": [[{ "node": "Retrieve relevant chunks", "type": "main", "index": 0 }]] },
-    "Retrieve relevant chunks": { "main": [[{ "node": "Build grounded prompt", "type": "main", "index": 0 }]] },
-    "Build grounded prompt": { "main": [[{ "node": "Generate cited answer", "type": "main", "index": 0 }]] },
-    "Generate cited answer": { "main": [[{ "node": "Reply with cited answer", "type": "main", "index": 0 }]] }
+    "Route command": {
+      "main": [
+        [
+          {
+            "node": "Reply help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get subscribers collection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get subscribers collection (unsub)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stats papers collection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Question log collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get subscribers collection": {
+      "main": [
+        [
+          {
+            "node": "Add subscriber",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add subscriber": {
+      "main": [
+        [
+          {
+            "node": "Reply subscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get subscribers collection (unsub)": {
+      "main": [
+        [
+          {
+            "node": "Remove subscriber",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove subscriber": {
+      "main": [
+        [
+          {
+            "node": "Reply unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stats papers collection": {
+      "main": [
+        [
+          {
+            "node": "Stats chunk count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stats chunk count": {
+      "main": [
+        [
+          {
+            "node": "Reply stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Question log collection": {
+      "main": [
+        [
+          {
+            "node": "Log question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log question": {
+      "main": [
+        [
+          {
+            "node": "Papers collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Papers collection": {
+      "main": [
+        [
+          {
+            "node": "Embed question with Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed question with Ollama": {
+      "main": [
+        [
+          {
+            "node": "Retrieve relevant chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve relevant chunks": {
+      "main": [
+        [
+          {
+            "node": "Build grounded prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build grounded prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate cited answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate cited answer": {
+      "main": [
+        [
+          {
+            "node": "Validate citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply with cited answer": {
+      "main": [
+        [
+          {
+            "node": "Question log (mark answered)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Question log (mark answered)": {
+      "main": [
+        [
+          {
+            "node": "Mark question answered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate citations": {
+      "main": [
+        [
+          {
+            "node": "Reply with cited answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "versionId": "1"
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2"
 }

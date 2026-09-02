@@ -1,20 +1,39 @@
-# Research Intelligence — requirements
+# Research Intelligence -- requirements
 #
-# This project has no Python application code of its own. Everything runs
-# inside Docker containers (n8n, ChromaDB, Ollama) orchestrated by
-# Research-Intelligence/docker-compose.yml, and the actual bot logic lives in
-# the two n8n workflow JSON files under Research-Intelligence/workflows/.
-# There is nothing here to `pip install`.
+# This project has no Python application code and no npm dependencies.
+# Everything runs inside Docker containers orchestrated by
+# Research-Intelligence/docker-compose.yml:
+#   - n8n            (the two workflows, in Research-Intelligence/workflows/)
+#   - chroma         (vector store)
+#   - ollama         (local LLM + embeddings)
+#   - ollama-init    (one-shot model puller)
+#   - dashboard      (Node standard library only -- no framework, no build step)
+#   - bootstrap      (one-shot first-boot setup, Node standard library only)
+# There is nothing here to `pip install` and nothing to `npm install`.
 #
 # --- System-level requirements (not pip packages) ---
 #   Docker Desktop >= 24.x   (Windows/Mac) or Docker Engine + Compose v2 (Linux)
 #   Docker Compose v2        (bundled with modern Docker Desktop; `docker compose version`)
-#   A Telegram account       (to create a bot via @BotFather)
-#   ~6 GB free disk          (n8n + Chroma + Ollama images, plus the nomic-embed-text
-#                             and llama3.2 models pulled automatically on first run)
+#   ~6 GB free disk          (n8n + Chroma + Ollama images, plus the
+#                             nomic-embed-text and llama3.2 models pulled
+#                             automatically on first run)
 #   8 GB+ RAM recommended    (llama3.2 running locally via Ollama)
+#   A Telegram account       (to create a bot via @BotFather)
+#   A public tunnel URL      (cloudflared quick tunnel works well and needs no
+#                             account; production deployments can use their own
+#                             public domain instead)
 #
-# --- Optional: only if you want to re-run ad-hoc verification/debugging ---
-# scripts against ChromaDB or n8n's REST API (not required to use the bot itself).
-# These use only Python's standard library — no third-party packages needed:
+# --- Free-tier accounts / credentials needed before the bot can run ---
+#   Telegram bot         (talk to @BotFather, /newbot)   -> TELEGRAM_BOT_TOKEN
+#   Public URL           (cloudflared, ngrok, or domain) -> WEBHOOK_URL
+#
+# All of the above go in Research-Intelligence/.env (copied from .env.example)
+# or filled in through the setup wizard at http://localhost:8080/setup.
+# That file is gitignored and must never be committed.
+#
+# --- Optional: only for ad-hoc verification/debugging scripts ---
+# Not required to run the system. Standard library only, no third-party
+# packages:
 #   python>=3.10
+#   node>=18          (only if you want to run dashboard/server.js outside Docker)
+

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up Research Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>Research Intelligence</h1>
+            <p class="brand-sub">First-run setup</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page setup-page">
+      <div id="already-done" class="notice" hidden>
+        <strong>Setup has already been completed.</strong>
+        <span
+          >Configuration lives in <code>.env</code>. To change it, edit that file directly and restart with
+          <code>docker compose up -d</code>. <a href="/">Go to the dashboard</a>.</span
+        >
+      </div>
+
+      <div id="setup-body">
+        <section class="intro-card">
+          <h2>Let's get you connected</h2>
+          <p>
+            This system reads arXiv for you every day, indexes the newest papers into a local vector store, and lets
+            anyone chat with a Telegram bot to ask questions about them &mdash; grounded in the actual paper text, with
+            citations. Every subscriber gets a morning digest of what's new.
+          </p>
+          <p class="intro-note">
+            The embeddings and the language model run locally through Ollama. No paper content or user question ever
+            leaves this machine. Your Telegram bot token is written to a local <code>.env</code> file and never sent
+            to your browser again after saving.
+          </p>
+        </section>
+
+        <form id="setup-form">
+          <!-- 1. n8n account -->
+          <section class="setup-step">
+            <div class="step-head">
+              <span class="step-num">1</span>
+              <div>
+                <h3>Choose your n8n login</h3>
+                <p>
+                  You'll use this to sign in to the workflow engine at <code>localhost:5678</code>. Make it up
+                  now &mdash; the account is created for you automatically.
+                </p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                <span>Email</span>
+                <input name="N8N_OWNER_EMAIL" type="email" required placeholder="you@example.com" autocomplete="off" />
+              </label>
+              <label>
+                <span>Password <em>(8+ chars, 1 uppercase, 1 number)</em></span>
+                <input name="N8N_OWNER_PASSWORD" type="password" required placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+                <span id="owner-exists-warning" class="field-warning" hidden>
+                  This n8n instance already has an account for this email. Setup can only
+                  <em>create</em> an account, never change one &mdash; so enter that account's
+                  <strong>existing</strong> password here, or reset n8n first
+                  (<code>docker compose down</code>, then
+                  <code>docker volume rm research-intelligence_n8n_data</code>). Your papers and
+                  subscribers live in ChromaDB and are not affected either way.
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- 2. Telegram bot -->
+          <section class="setup-step">
+            <div class="step-head">
+              <span class="step-num">2</span>
+              <div>
+                <h3>Telegram &mdash; where users chat with the bot</h3>
+                <p>
+                  Open Telegram, message
+                  <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, and send
+                  <code>/newbot</code>. Follow the prompts to name your bot and choose a username ending in
+                  <code>bot</code>. BotFather replies with a token that looks like
+                  <code>123456789:AAH...</code> &mdash; that's what goes below.
+                </p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label class="wide">
+                <span>Bot token</span>
+                <input name="TELEGRAM_BOT_TOKEN" type="text" required placeholder="123456789:AAH..." autocomplete="off" />
+              </label>
+            </div>
+            <div class="test-row">
+              <button class="btn" type="button" data-test="telegram" data-fields="TELEGRAM_BOT_TOKEN">
+                Test this token
+              </button>
+              <span class="test-result" data-result="telegram"></span>
+            </div>
+          </section>
+
+          <!-- 3. Webhook URL -->
+          <section class="setup-step">
+            <div class="step-head">
+              <span class="step-num">3</span>
+              <div>
+                <h3>Public URL &mdash; how Telegram reaches your bot</h3>
+                <p>
+                  Telegram delivers messages by calling a public URL, so <code>localhost</code> needs a tunnel in
+                  front of it. The easiest free option that needs no account is
+                  <a href="https://github.com/cloudflare/cloudflared" target="_blank" rel="noopener noreferrer"
+                    >cloudflared</a
+                  >:
+                </p>
+                <pre class="cmd">cloudflared tunnel --url http://localhost:5678</pre>
+                <p>
+                  It prints a URL like <code>https://random-words.trycloudflare.com</code>. Paste it below (with a
+                  trailing slash). If you're deploying to a VPS or n8n Cloud with a real domain, use that URL
+                  instead and skip the tunnel entirely.
+                </p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label class="wide">
+                <span>Public webhook URL</span>
+                <input
+                  name="WEBHOOK_URL"
+                  type="url"
+                  required
+                  placeholder="https://random-words.trycloudflare.com/"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <div class="test-row">
+              <button class="btn" type="button" data-test="webhook" data-fields="WEBHOOK_URL">
+                Test this URL
+              </button>
+              <span class="test-result" data-result="webhook"></span>
+            </div>
+          </section>
+
+          <!-- 4. arXiv categories -->
+          <section class="setup-step">
+            <div class="step-head">
+              <span class="step-num">4</span>
+              <div>
+                <h3>arXiv categories &mdash; what to read</h3>
+                <p>
+                  A comma-separated list of arXiv category codes to monitor. Popular ones for ML/AI:
+                  <code>cs.AI</code>, <code>cs.LG</code>, <code>cs.CL</code>, <code>cs.CV</code>,
+                  <code>stat.ML</code>. The full taxonomy is
+                  <a href="https://arxiv.org/category_taxonomy" target="_blank" rel="noopener noreferrer">here</a>.
+                  You can change this any time from the dashboard.
+                </p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label class="wide">
+                <span>Categories</span>
+                <input
+                  name="ARXIV_CATEGORIES"
+                  type="text"
+                  required
+                  value="cs.AI"
+                  placeholder="cs.AI, cs.LG, stat.ML"
+                />
+              </label>
+              <label>
+                <span>Papers per category per day</span>
+                <input name="ARXIV_MAX_RESULTS" type="number" min="1" max="50" value="5" />
+              </label>
+              <label>
+                <span>Ingestion cron <em>(UTC)</em></span>
+                <input name="INGESTION_CRON" type="text" value="0 8 * * *" placeholder="0 8 * * *" />
+              </label>
+            </div>
+            <div class="test-row">
+              <button class="btn" type="button" data-test="arxiv" data-fields="ARXIV_CATEGORIES">
+                Test these categories
+              </button>
+              <span class="test-result" data-result="arxiv"></span>
+            </div>
+          </section>
+
+          <div class="submit-row">
+            <button class="btn btn-primary btn-large" type="submit">Save configuration</button>
+            <p id="setup-error" class="form-error" hidden></p>
+          </div>
+        </form>
+
+        <section id="done-panel" class="done-panel" hidden>
+          <h2>Configuration saved</h2>
+          <p>Your keys were written to <code>.env</code>. One last step to bring everything online:</p>
+          <pre class="cmd">docker compose up -d</pre>
+          <p class="done-note">
+            Run that in the <code>Research-Intelligence</code> folder. If you started this with
+            <code>start.ps1</code> or <code>start.sh</code>, it is already happening automatically &mdash; just wait
+            a moment. Setup then creates your account, provisions the vector store, pulls the Ollama models, and
+            switches both workflows on.
+          </p>
+          <p class="done-note">
+            First-run models are big: <code>llama3.2</code> is roughly 2&nbsp;GB and <code>nomic-embed-text</code>
+            is around 275&nbsp;MB. Both download once and are cached.
+          </p>
+          <p><a class="btn btn-primary" href="/">Open the dashboard</a></p>
+        </section>
+      </div>
+    </main>
+
+    <script src="/setup.js"></script>
+  </body>
+</html>
