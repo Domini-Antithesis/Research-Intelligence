@@ -450,8 +450,8 @@ async function main() {
     await importWorkflows(telegramCredentialId);
   }
   log('Setup complete.');
-  log(`n8n UI:     ${N8N_BASE_URL.replace('//n8n:', '//localhost:')}`);
-  log('Dashboard:  http://localhost:8080');
+  log(`n8n UI:     http://localhost:${process.env.N8N_UI_PORT || '5679'}`);
+  log(`Dashboard:  http://localhost:${process.env.DASHBOARD_HOST_PORT || '8201'}`);
 }
 
 main().catch((err) => {

@@ -259,7 +259,7 @@ You do **not** need to prepare these in advance — the setup page links each on
 | Service | What you're getting | Where |
 |---|---|---|
 | **Telegram bot** | A bot username + a bot token | Message [@BotFather](https://t.me/BotFather) and send `/newbot`. |
-| **Public tunnel URL** | An `https://…` URL that forwards to `localhost:5678` so Telegram can reach n8n | The easiest free option is [cloudflared](https://github.com/cloudflare/cloudflared) quick tunnels — no account required. `cloudflared tunnel --url http://localhost:5678` prints a URL and keeps it running. |
+| **Public tunnel URL** | An `https://…` URL that forwards to `localhost:5679` so Telegram can reach n8n | The easiest free option is [cloudflared](https://github.com/cloudflare/cloudflared) quick tunnels — no account required. `cloudflared tunnel --url http://localhost:5679` prints a URL and keeps it running. |
 
 If you're deploying to a VPS or n8n Cloud with a real domain, use that as the webhook URL and skip the tunnel entirely.
 
@@ -329,7 +329,7 @@ bash start.sh
 
 1. Checks Docker is running (and tells you clearly if it isn't).
 2. Starts the dashboard container.
-3. Opens `http://localhost:8080/setup` in your browser.
+3. Opens `http://localhost:8201/setup` in your browser.
 4. **Waits** while you fill in the form — leave the terminal open.
 5. The moment you save, it brings up the rest of the stack, pulls the Ollama models, runs first-boot setup, prints the logs, and opens the dashboard.
 
@@ -341,7 +341,7 @@ The page walks through four steps, each linking exactly where to click:
 |---|---|---|
 | 1 | An email and password for n8n | You invent these now. The account is created for you. Password needs 8+ characters, one uppercase, one number. |
 | 2 | Telegram bot token | Message [@BotFather](https://t.me/BotFather), run `/newbot`, follow the prompts, paste the token. The **Test** button hits `getMe` and shows you the bot's own username so you know it's the right one. |
-| 3 | Public webhook URL | The URL Telegram will call. `cloudflared tunnel --url http://localhost:5678` prints one you can paste in directly. The **Test** button fetches the URL to check it's actually reachable from the internet. |
+| 3 | Public webhook URL | The URL Telegram will call. `cloudflared tunnel --url http://localhost:5679` prints one you can paste in directly. The **Test** button fetches the URL to check it's actually reachable from the internet. |
 | 4 | arXiv categories to monitor | Comma-separated codes like `cs.AI, cs.LG, stat.ML`. Full list at [arxiv.org/category_taxonomy](https://arxiv.org/category_taxonomy). The **Test** button asks arXiv itself if the first category returns results, so a typo like `cs.Ai` is caught before saving. |
 
 Use the **Test** button beside each field before saving. It calls the real service and tells you precisely what's wrong — a rejected token, an unreachable tunnel, an unknown category — which is far faster than discovering it later in a failed workflow run.
@@ -383,8 +383,8 @@ Then bootstrap runs:
 
 Then you're live:
 
-- **Dashboard** — <http://localhost:8080>
-- **n8n** — <http://localhost:5678> (log in with the email/password from step 3)
+- **Dashboard** — <http://localhost:8201>
+- **n8n** — <http://localhost:5679> (log in with the email/password from step 3)
 
 ### Installing without the launcher
 
@@ -414,7 +414,7 @@ The result is identical; you've just done by hand what the setup page does for y
 
 ### The dashboard
 
-<http://localhost:8080> is where you'll spend your time. It refreshes itself every minute.
+<http://localhost:8201> is where you'll spend your time. It refreshes itself every minute.
 
 - **Component health** — quick pill row showing n8n, ChromaDB, Ollama, and the Telegram credential. Green means reachable and configured; red means the container is down; amber means a token or URL still needs attention.
 - **Overview** — papers indexed, chunks embedded, active subscribers, and total questions asked.
@@ -579,7 +579,7 @@ The test does an actual HTTPS GET to the URL you pasted. Common causes:
 
 - The tunnel process (`cloudflared tunnel --url ...`) is no longer running. Start it in a separate terminal and leave it running.
 - The URL doesn't end with a trailing slash. The setup form auto-corrects this on save but the test button uses whatever you typed.
-- You pasted an internal URL like `http://localhost:5678/`. That's accepted (the test says so) but Telegram cannot reach it, so the bot will only respond to workflows executed manually.
+- You pasted an internal URL like `http://localhost:5679/`. That's accepted (the test says so) but Telegram cannot reach it, so the bot will only respond to workflows executed manually.
 </details>
 
 <details>

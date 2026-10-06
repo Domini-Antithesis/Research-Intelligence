@@ -5,7 +5,8 @@
       "parameters": {
         "updates": [
           "message"
-        ]
+        ],
+        "additionalFields": {}
       },
       "id": "telegram-trigger",
       "name": "TelegramTrigger",
@@ -15,9 +16,10 @@
         0,
         0
       ],
+      "webhookId": "d389a86a-8cdc-4f89-9e5b-c3fc25d27bd1",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
       }
@@ -58,8 +60,7 @@
                   }
                 ],
                 "combinator": "and"
-              },
-              "outputKey": "help"
+              }
             },
             {
               "conditions": {
@@ -80,8 +81,7 @@
                   }
                 ],
                 "combinator": "and"
-              },
-              "outputKey": "subscribe"
+              }
             },
             {
               "conditions": {
@@ -102,8 +102,7 @@
                   }
                 ],
                 "combinator": "and"
-              },
-              "outputKey": "unsubscribe"
+              }
             },
             {
               "conditions": {
@@ -124,8 +123,7 @@
                   }
                 ],
                 "combinator": "and"
-              },
-              "outputKey": "stats"
+              }
             }
           ]
         },
@@ -144,7 +142,6 @@
     },
     {
       "parameters": {
-        "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "Hi! I'm the Research Intelligence bot. I read the newest arXiv papers every morning and answer questions about them, grounded in the actual paper text.\n\nCommands:\n/subscribe   -- receive the daily digest\n/unsubscribe -- stop the daily digest\n/stats       -- how many papers I've indexed\n/help        -- show this message\n\nOr just ask me a question! For example:\n   What is class activation mapping?\n   Which papers discuss retrieval-augmented generation?",
         "additionalFields": {
@@ -159,12 +156,16 @@
         720,
         -560
       ],
+      "webhookId": "5320f163-519a-403e-a967-b3fdfbbe4c42",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -181,8 +182,11 @@
       "typeVersion": 4.2,
       "position": [
         720,
-        -380
-      ]
+        -384
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -199,12 +203,14 @@
       "typeVersion": 4.2,
       "position": [
         960,
-        -380
-      ]
+        -384
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "You're subscribed! You'll receive the daily research digest each morning. Send /unsubscribe anytime to stop.",
         "additionalFields": {
@@ -217,14 +223,18 @@
       "typeVersion": 1.2,
       "position": [
         1200,
-        -380
+        -384
       ],
+      "webhookId": "c4e53b12-f1e3-4da4-a93c-c85672f1c57b",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -241,8 +251,11 @@
       "typeVersion": 4.2,
       "position": [
         720,
-        -200
-      ]
+        -208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -259,12 +272,14 @@
       "typeVersion": 4.2,
       "position": [
         960,
-        -200
-      ]
+        -208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "You're unsubscribed from the daily digest.",
         "additionalFields": {
@@ -277,14 +292,18 @@
       "typeVersion": 1.2,
       "position": [
         1200,
-        -200
+        -208
       ],
+      "webhookId": "134248f1-bdf6-46fe-b2a6-1d64f86f71f7",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -301,12 +320,14 @@
       "typeVersion": 4.2,
       "position": [
         720,
-        -20
-      ]
+        -16
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "={{ ($env.CHROMA_BASE_URL || 'http://chroma:8000') + '/api/v1/collections/' + $json.id + '/count' }}",
         "options": {
           "response": {
@@ -322,12 +343,14 @@
       "typeVersion": 4.2,
       "position": [
         960,
-        -20
-      ]
+        -16
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "operation": "sendMessage",
         "chatId": "={{ $('Normalise question').item.json.chatId }}",
         "text": "={{ 'Index status: ' + ($json.body ?? $json.data ?? '0') + ' chunk(s) currently stored across the indexed papers. Ask me anything!' }}",
         "additionalFields": {
@@ -340,14 +363,18 @@
       "typeVersion": 1.2,
       "position": [
         1200,
-        -20
+        -16
       ],
+      "webhookId": "b891e92e-ebad-46c5-9eb7-010ecda7e02f",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -364,9 +391,12 @@
       "typeVersion": 4.2,
       "position": [
         720,
-        200
+        208
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -383,9 +413,12 @@
       "typeVersion": 4.2,
       "position": [
         960,
-        200
+        208
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -402,8 +435,11 @@
       "typeVersion": 4.2,
       "position": [
         1200,
-        200
-      ]
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -412,7 +448,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { model: ($env.EMBEDDING_MODEL || 'nomic-embed-text'), input: $('Normalise question').item.json.question, keep_alive: '30m' } }}",
-        "options": {}
+        "options": {
+          "timeout": 120000
+        }
       },
       "id": "embed-question",
       "name": "Embed question with Ollama",
@@ -420,8 +458,11 @@
       "typeVersion": 4.2,
       "position": [
         1440,
-        200
-      ]
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -438,8 +479,11 @@
       "typeVersion": 4.2,
       "position": [
         1680,
-        200
-      ]
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -451,7 +495,7 @@
       "typeVersion": 2,
       "position": [
         1920,
-        200
+        208
       ]
     },
     {
@@ -461,7 +505,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json.empty ? { model: ($env.GENERATION_MODEL || 'llama3.2'), stream: false, keep_alive: '30m', messages: [{ role: 'assistant', content: 'The research index does not yet cover this question. Try again once daily ingestion has run, or ask about the paper categories I already track.' }] } : { model: ($env.GENERATION_MODEL || 'llama3.2'), stream: false, keep_alive: '30m', messages: [{ role: 'system', content: 'You are a precise research assistant. Never invent sources or citations.' }, { role: 'user', content: $json.prompt }] } }}",
-        "options": {}
+        "options": {
+          "timeout": 600000
+        }
       },
       "id": "generate-answer",
       "name": "Generate cited answer",
@@ -469,30 +515,34 @@
       "typeVersion": 4.2,
       "position": [
         2160,
-        200
-      ]
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Deterministic backstop: the model is told twice (system message + user\n// prompt) never to invent a source label, and still sometimes does --\n// confirmed live, citing a 'Source 36' backed by a fabricated Nature paper\n// that was never retrieved. Two tiers: surgically strip the specific\n// patterns that carry fabricated content (a parenthesised citation, a\n// bibliography line), then a looser sweep for any other 'Source N' mention\n// in free text (e.g. \"Sources 1 and 36\") that the first pass can't safely\n// rewrite without risking broken grammar -- surfaced as a warning instead.\nconst raw = $json;\nconst promptCtx = $('Build grounded prompt').item.json;\nconst numSources = promptCtx.sourceCount || 0;\nlet answer = raw.message?.content || '';\nconst invalid = [];\n\nif (numSources > 0) {\n  // Tier 1a: parenthesised inline citations -- safe to replace in place.\n  answer = answer.replace(/\\(Source (\\d+)\\)/g, (match, n) => {\n    const num = Number(n);\n    if (num >= 1 && num <= numSources) return match;\n    invalid.push(num);\n    return '(uncited claim)';\n  });\n\n  // Tier 1b: fabricated bibliography lines -- drop the whole line, since\n  // everything after the colon is invented (title, journal, DOI, ...).\n  const lines = answer.split('\\n').filter((line) => {\n    const m = line.match(/^\\s*[-*]?\\s*Source (\\d+)\\s*:/i);\n    if (!m) return true;\n    const num = Number(m[1]);\n    if (num >= 1 && num <= numSources) return true;\n    invalid.push(num);\n    return false;\n  });\n  answer = lines.join('\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\n\n  // Tier 2: a looser sweep for numbers grammatically tied to the word\n  // 'Source'/'Sources' elsewhere in the prose (e.g. \"Sources 1 and 36\"),\n  // not just the parenthesised form Tier 1 rewrites. Anchored to numbers\n  // immediately following the word (joined only by 'and'/','/'&') so an\n  // unrelated number later in the same sentence -- a page, a year -- can't\n  // be swept in. Flagged rather than edited in place, since surgically\n  // rewriting arbitrary prose risks producing broken grammar.\n  const looseMatches = answer.matchAll(/\\bSources?\\s+(\\d+(?:\\s*(?:,|and|&)\\s*\\d+)*)/gi);\n  for (const m of looseMatches) {\n    const nums = m[1].match(/\\d+/g) || [];\n    for (const n of nums) {\n      const num = Number(n);\n      if (num < 1 || num > numSources) invalid.push(num);\n    }\n  }\n\n  if (invalid.length > 0) {\n    const uniq = [...new Set(invalid)];\n    answer += `\\n\\n\\u26a0\\ufe0f This answer referenced source number${uniq.length > 1 ? 's' : ''} ${uniq.join(', ')}, which ${uniq.length > 1 ? 'are' : 'is'} outside the ${numSources} passages actually retrieved -- likely hallucinated. Treat any claim tied to ${uniq.length > 1 ? 'those numbers' : 'that number'} with caution.`;\n  }\n}\n\nreturn { json: { ...raw, safeAnswer: answer, invalidCitationCount: invalid.length } };"
+        "jsCode": "// Deterministic backstop: the model is told twice (system message + user\n// prompt) never to invent a source label, and still sometimes does --\n// confirmed live, citing a 'Source 36' backed by a fabricated Nature paper\n// that was never retrieved. Two tiers: surgically strip the specific\n// patterns that carry fabricated content (a parenthesised citation, a\n// bibliography line), then a looser sweep for any other 'Source N' mention\n// in free text (e.g. \"Sources 1 and 36\") that the first pass can't safely\n// rewrite without risking broken grammar -- surfaced as a warning instead.\nconst raw = $json;\nconst promptCtx = $('Build grounded prompt').item.json;\nconst numSources = promptCtx.sourceCount || 0;\nlet answer = raw.message?.content || '';\n// Generation is allowed to fail without ending the run. Say so, rather\n// than leaving the person waiting on a reply that will never arrive.\nconst generationFailed = !answer.trim();\nif (generationFailed) {\n  answer = 'I could not produce an answer just now - the local model did not respond in time. '\n    + 'Please ask again in a minute.';\n}\nconst invalid = [];\n\nif (numSources > 0) {\n  // Tier 1a: parenthesised inline citations -- safe to replace in place.\n  answer = answer.replace(/\\(Source (\\d+)\\)/g, (match, n) => {\n    const num = Number(n);\n    if (num >= 1 && num <= numSources) return match;\n    invalid.push(num);\n    return '(uncited claim)';\n  });\n\n  // Tier 1b: fabricated bibliography lines -- drop the whole line, since\n  // everything after the colon is invented (title, journal, DOI, ...).\n  const lines = answer.split('\\n').filter((line) => {\n    const m = line.match(/^\\s*[-*]?\\s*Source (\\d+)\\s*:/i);\n    if (!m) return true;\n    const num = Number(m[1]);\n    if (num >= 1 && num <= numSources) return true;\n    invalid.push(num);\n    return false;\n  });\n  answer = lines.join('\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\n\n  // Tier 2: a looser sweep for numbers grammatically tied to the word\n  // 'Source'/'Sources' elsewhere in the prose (e.g. \"Sources 1 and 36\"),\n  // not just the parenthesised form Tier 1 rewrites. Anchored to numbers\n  // immediately following the word (joined only by 'and'/','/'&') so an\n  // unrelated number later in the same sentence -- a page, a year -- can't\n  // be swept in. Flagged rather than edited in place, since surgically\n  // rewriting arbitrary prose risks producing broken grammar.\n  const looseMatches = answer.matchAll(/\\bSources?\\s+(\\d+(?:\\s*(?:,|and|&)\\s*\\d+)*)/gi);\n  for (const m of looseMatches) {\n    const nums = m[1].match(/\\d+/g) || [];\n    for (const n of nums) {\n      const num = Number(n);\n      if (num < 1 || num > numSources) invalid.push(num);\n    }\n  }\n\n  if (invalid.length > 0) {\n    const uniq = [...new Set(invalid)];\n    answer += `\\n\\n\\u26a0\\ufe0f This answer referenced source number${uniq.length > 1 ? 's' : ''} ${uniq.join(', ')}, which ${uniq.length > 1 ? 'are' : 'is'} outside the ${numSources} passages actually retrieved -- likely hallucinated. Treat any claim tied to ${uniq.length > 1 ? 'those numbers' : 'that number'} with caution.`;\n  }\n}\n\n\n// Telegram parses the message body as Markdown by default and rejects the\n// whole request if an entity is left open. Model output routinely contains an\n// odd number of asterisks or an unmatched bracket, which is what produced\n// \"can't parse entities\" on a live question. Escaping for HTML mode makes\n// every character literal, so no generated answer can break the send.\n// Telegram caps a message at 4096 characters. Clip the raw text first and\n// escape afterwards: clipping escaped text can cut an entity such as &amp;\n// in half, which Telegram rejects just like unbalanced Markdown.\nconst LIMIT = 3600;\nconst clipped = (answer.length > LIMIT\n  ? answer.slice(0, LIMIT) + '\\n\\n[answer truncated - ask a narrower question for the full reply]'\n  : answer)\n  .replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '');\nconst safeForTelegram = clipped\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\nreturn { json: { ...raw, safeAnswer: safeForTelegram, rawAnswer: answer, invalidCitationCount: invalid.length } };"
       },
       "id": "validate-citations",
       "name": "Validate citations",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2360,
-        200
+        2368,
+        208
       ]
     },
     {
       "parameters": {
-        "operation": "sendMessage",
         "chatId": "={{ $('Build grounded prompt').item.json.chatId }}",
         "text": "={{ $json.safeAnswer }}",
         "additionalFields": {
-          "appendAttribution": false
+          "appendAttribution": false,
+          "parse_mode": "HTML"
         }
       },
       "id": "reply-telegram",
@@ -501,14 +551,18 @@
       "typeVersion": 1.2,
       "position": [
         2560,
-        200
+        208
       ],
+      "webhookId": "f116c5a6-eb07-443c-89cd-b5c87bec9a8b",
       "credentials": {
         "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "id": "UYMbSTCAJFDVsXEA",
           "name": "Research Intelligence Telegram Bot"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -524,10 +578,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2640,
-        200
+        2720,
+        208
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -544,9 +601,12 @@
       "typeVersion": 4.2,
       "position": [
         2880,
-        200
+        208
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
